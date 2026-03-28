@@ -74,19 +74,23 @@ v2 协议设计目标：
 
 ## 4. 字段总览
 
-| 字段             | 类型            | 级别 | 分类 | 说明      |
-| -------------- | ------------- | -- | -- | ------- |
-| boss           | string        | 房间 | 静态 | 当前 Boss |
-| ban_list       | string[]      | 房间 | 静态 | ban 位列表 |
-| enemy_type     | string[]      | 房间 | 静态 | 敌方特化类型  |
-| phase          | string        | 房间 | 动态 | 当前阶段    |
-| round          | string        | 房间 | 动态 | 当前回合    |
-| strategy       | string        | 玩家 | 静态 | 玩家策略    |
-| money          | int           | 玩家 | 动态 | 剩余资金    |
-| operators      | array         | 玩家 | 动态 | 场上干员    |
-| alliance_stack | dict[str,int] | 玩家 | 动态 | 盟约层数    |
-| leak_count     | int           | 玩家 | 动态 | 漏怪数     |
-| cc_level       | int           | 玩家 | 动态 | 调度中心等级  |
+| 字段                   | 类型            | 级别 | 分类 | 说明                |
+| ------------------ | ------------- | -- | -- | ----------------- |
+| boss                | string        | 房间 | 静态 | 当前 Boss           |
+| ban_list            | string[]      | 房间 | 静态 | ban 位列表          |
+| enemy_type          | string[]      | 房间 | 静态 | 敌方特化类型         |
+| max_players         | int           | 房间 | 设置 | 房间人数上限（默认4）     |
+| enable_battle_progress_detection | boolean | 房间 | 设置 | 是否启用作战进度检测     |
+| enable_leak_count_detection | boolean | 房间 | 设置 | 是否启用漏怪数检测       |
+| host_display_text   | string        | 房间 | 设置 | 房主展示文本（邀请码）     |
+| phase               | string        | 房间 | 动态 | 当前阶段             |
+| round               | string        | 房间 | 动态 | 当前回合             |
+| strategy            | string        | 玩家 | 静态 | 玩家策略             |
+| money               | int           | 玩家 | 动态 | 剩余资金             |
+| operators           | array         | 玩家 | 动态 | 场上干员             |
+| alliance_stack       | dict[str,int] | 玩家 | 动态 | 盟约层数             |
+| leak_count          | int           | 玩家 | 动态 | 漏怪数              |
+| cc_level            | int           | 玩家 | 动态 | 调度中心等级           |
 
 ---
 
@@ -361,6 +365,12 @@ Content-Type: application/json
     "phase": "battle",
     "round": "11"
   },
+  "room_settings": {
+    "max_players": 4,
+    "enable_battle_progress_detection": true,
+    "enable_leak_count_detection": true,
+    "host_display_text": "ARK-12345"
+  },
   "player_static": {
     "strategy": "文火慢炖"
   },
@@ -391,11 +401,18 @@ Content-Type: application/json
 }
 ```
 
+**错误响应**：
+- 404: 房间不存在
+- 400: 玩家不在房间内
+- 403: 非房主尝试更新房间设置
+
 **说明**：
-- 如果房间不存在，会自动创建
+- 如果房间不存在，返回 404 错误（不再自动创建）
+- 如果玩家不在房间内，返回 400 错误
 - 支持部分字段更新
-- `room_static` 和 `room_dynamic` 只有房主可以更新
+- `room_static`、`room_dynamic` 和 `room_settings` 只有房主可以更新
 - `player_static` 和 `player_dynamic` 玩家只能更新自己的
+- 每次更新会重置房间过期时间（30分钟）
 
 ---
 
@@ -426,9 +443,16 @@ GET /api/rooms/:roomId?since=1710280305000
       "phase": "battle",
       "round": "11"
     },
+    "room_settings": {
+      "max_players": 4,
+      "enable_battle_progress_detection": true,
+      "enable_leak_count_detection": true,
+      "host_display_text": "ARK-12345"
+    },
     "players": [
       {
         "player_id": "p1",
+        "player_name": "玩家1",
         "static": {
           "strategy": "文火慢炖"
         },
@@ -459,7 +483,6 @@ POST /api/rooms
 Content-Type: application/json
 
 {
-  "player_id": "p1",
   "player_name": "玩家名称"
 }
 ```
@@ -471,6 +494,8 @@ Content-Type: application/json
   "data": {
     "room_id": "ABC123",
     "host_player_id": "p1",
+    "player_id": "p1",
+    "player_name": "玩家名称",
     "players": [
       {
         "player_id": "p1",
@@ -483,12 +508,69 @@ Content-Type: application/json
 ```
 
 **说明**：
+- 只需要传 `player_name`，`player_id` 由服务器自动分配
 - 房间号自动生成（6位字母数字组合）
-- 创建者自动成为房主
+- 创建者自动成为房主，服务器分配 `p1` 作为其 player_id
 
 ---
 
-### 7.4 删除房间
+### 7.4 加入房间
+
+**请求**：
+```
+POST /api/rooms/:roomId/join
+Content-Type: application/json
+
+{
+  "player_name": "玩家名称"
+}
+```
+
+**响应**（200 OK）：
+```json
+{
+  "success": true,
+  "message": "加入房间成功",
+  "data": {
+    "room_id": "ABC123",
+    "host_player_id": "p1",
+    "player_id": "p2",
+    "player_name": "玩家名称",
+    "room_settings": {
+      "max_players": 4,
+      "enable_battle_progress_detection": false,
+      "enable_leak_count_detection": false,
+      "host_display_text": ""
+    },
+    "players": [
+      {
+        "player_id": "p1",
+        "player_name": "房主昵称",
+        "is_host": true
+      },
+      {
+        "player_id": "p2",
+        "player_name": "玩家名称",
+        "is_host": false
+      }
+    ]
+  }
+}
+```
+
+**错误响应**：
+- 404: 房间不存在
+- 400: 房间已满
+
+**说明**：
+- 只需要传 `player_name`，`player_id` 由服务器自动分配
+- 服务器按加入顺序分配 player_id（p1, p2, p3, p4）
+- 检查房间是否存在和是否已满
+- 返回分配的 player_id 和房间完整信息
+
+---
+
+### 7.5 删除房间
 
 **请求**：
 ```
@@ -505,7 +587,7 @@ DELETE /api/rooms/:roomId
 
 ---
 
-### 7.5 获取所有房间（调试）
+### 7.6 获取所有房间（调试）
 
 **请求**：
 ```
@@ -744,6 +826,17 @@ round
 
 ---
 
+### 房间设置
+
+```
+max_players
+enable_battle_progress_detection
+enable_leak_count_detection
+host_display_text
+```
+
+---
+
 ### 玩家静态
 
 ```
@@ -761,6 +854,22 @@ alliance_stack
 leak_count
 cc_level
 ```
+
+---
+
+## 12.1 player_id 分配规则
+
+服务器自动分配 player_id，按加入房间顺序：
+
+- 房主：`p1`
+- 第二个玩家：`p2`
+- 第三个玩家：`p3`
+- 第四个玩家：`p4`
+
+**重要：**
+- 客户端不能自定义 player_id
+- 所有 POST 请求都必须使用服务器分配的 player_id
+- player_id 在整个房间会话中保持不变
 
 ---
 

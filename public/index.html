@@ -365,8 +365,16 @@
                         <p>房间状态<br>玩家状态同步</p>
                     </div>
                     <div class="feature-card">
-                        <h4>⏰ 2小时有效期</h4>
+                        <h4>⏰ 30分钟有效期</h4>
                         <p>自动清理<br>过期房间</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>🔑 服务器分配ID</h4>
+                        <p>自动分配<br>避免冲突</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>🎮 房间设置</h4>
+                        <p>自定义房间<br>功能配置</p>
                     </div>
                 </div>
 
@@ -498,11 +506,11 @@
                 <div class="api-section">
                     <h3>1. 更新房间/玩家状态（主接口）⭐</h3>
                     <p><span class="api-method post">POST</span> <strong>/api/rooms/:roomId/update</strong></p>
-                    <p><em>如果房间不存在，会自动创建</em></p>
+                    <p><em>房间不存在返回404，玩家不在房间内返回400</em></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">{
-  "player_id": "player_123",
+  "player_id": "p1",
   "room_static": {
     "boss": "昆图斯",
     "ban_list": ["拉特兰", "卡西米尔"],
@@ -511,6 +519,12 @@
   "room_dynamic": {
     "phase": "battle",
     "round": "11"
+  },
+  "room_settings": {
+    "max_players": 4,
+    "enable_battle_progress_detection": true,
+    "enable_leak_count_detection": true,
+    "host_display_text": "ARK-12345"
   },
   "player_static": {
     "strategy": "文火慢炖"
@@ -537,11 +551,17 @@
   "message": "更新成功",
   "data": {
     "roomId": "ROOM01",
-    "player_id": "player_123",
+    "player_id": "p1",
     "updated_at": 1710280305000
   }
 }</div>
                     </div>
+                    <p><strong>错误响应:</strong></p>
+                    <ul>
+                        <li>404: 房间不存在</li>
+                        <li>400: 玩家不在房间内</li>
+                        <li>403: 非房主尝试更新房间设置</li>
+                    </ul>
                 </div>
 
                 <div class="api-section">
@@ -593,7 +613,6 @@
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">{
-  "player_id": "player_123",
   "player_name": "玩家名称"
 }</div>
                     </div>
@@ -603,10 +622,12 @@
   "success": true,
   "data": {
     "room_id": "ABC123",
-    "host_player_id": "player_123",
+    "host_player_id": "p1",
+    "player_id": "p1",
+    "player_name": "玩家名称",
     "players": [
       {
-        "player_id": "player_123",
+        "player_id": "p1",
         "player_name": "玩家名称",
         "is_host": true
       }
@@ -617,7 +638,54 @@
                 </div>
 
                 <div class="api-section">
-                    <h3>4. 删除房间</h3>
+                    <h3>4. 加入房间</h3>
+                    <p><span class="api-method post">POST</span> <strong>/api/rooms/:roomId/join</strong></p>
+                    <div class="relative">
+                        <button class="copy-btn" onclick="copyCode(this)">复制</button>
+                        <div class="code-block">{
+  "player_name": "玩家名称"
+}</div>
+                    </div>
+                    <p><strong>响应:</strong></p>
+                    <div class="response-example">
+                        <div class="code-block">{
+  "success": true,
+  "message": "加入房间成功",
+  "data": {
+    "room_id": "ABC123",
+    "host_player_id": "p1",
+    "player_id": "p2",
+    "player_name": "玩家名称",
+    "room_settings": {
+      "max_players": 4,
+      "enable_battle_progress_detection": false,
+      "enable_leak_count_detection": false,
+      "host_display_text": ""
+    },
+    "players": [
+      {
+        "player_id": "p1",
+        "player_name": "房主昵称",
+        "is_host": true
+      },
+      {
+        "player_id": "p2",
+        "player_name": "玩家名称",
+        "is_host": false
+      }
+    ]
+  }
+}</div>
+                    </div>
+                    <p><strong>错误响应:</strong></p>
+                    <ul>
+                        <li>404: 房间不存在</li>
+                        <li>400: 房间已满</li>
+                    </ul>
+                </div>
+
+                <div class="api-section">
+                    <h3>5. 删除房间</h3>
                     <p><span class="api-method delete">DELETE</span> <strong>/api/rooms/:roomId</strong></p>
                     <p><strong>响应:</strong></p>
                     <div class="response-example">
@@ -629,7 +697,7 @@
                 </div>
 
                 <div class="api-section">
-                    <h3>5. 获取所有房间（调试）</h3>
+                    <h3>6. 获取所有房间（调试）</h3>
                     <p><span class="api-method get">GET</span> <strong>/api/rooms</strong></p>
                     <p><strong>响应:</strong></p>
                     <div class="response-example">
@@ -775,58 +843,64 @@ client.update({
                     <h4>1. 创建房间</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms -H "Content-Type: application/json" -d '{"player_id":"player_123","player_name":"玩家1"}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms -H "Content-Type: application/json" -d '{"player_name":"玩家1"}'</div>
                     </div>
-                    
-                    <h4>2. 获取完整房间信息</h4>
+
+                    <h4>2. 加入房间</h4>
+                    <div class="relative">
+                        <button class="copy-btn" onclick="copyCode(this)">复制</button>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/join -H "Content-Type: application/json" -d '{"player_name":"玩家2"}'</div>
+                    </div>
+
+                    <h4>3. 获取完整房间信息</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl http://zrw.baby:26313/api/rooms/ROOM01</div>
                     </div>
                     
-                    <h4>3. 增量获取（带since参数）</h4>
+                    <h4>4. 增量获取（带since参数）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl "http://zrw.baby:26313/api/rooms/ROOM01?since=1710280305000"</div>
                     </div>
                     
-                    <h4>4. 更新房间静态状态（房主）</h4>
+                    <h4>5. 更新房间静态状态（房主）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","room_static":{"boss":"昆图斯","ban_list":["拉特兰","卡西米尔"],"enemy_type":["隐匿","折射"]}}'</div>
                     </div>
                     
-                    <h4>5. 更新房间动态状态（房主）</h4>
+                    <h4>6. 更新房间动态状态（房主）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","room_dynamic":{"phase":"battle","round":"11"}}'</div>
                     </div>
                     
-                    <h4>6. 更新玩家静态状态</h4>
+                    <h4>7. 更新玩家静态状态</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_static":{"strategy":"文火慢炖"}}'</div>
                     </div>
                     
-                    <h4>7. 更新玩家动态状态</h4>
+                    <h4>8. 更新玩家动态状态</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_dynamic":{"money":30,"operators":[{"name":"山"},{"name":"能天使"}],"alliance_stack":{"卡西米尔":2,"坚守":1},"leak_count":0,"cc_level":5}}'</div>
                     </div>
                     
-                    <h4>8. 部分更新（只更新部分字段）</h4>
+                    <h4>9. 部分更新（只更新部分字段）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_dynamic":{"money":35,"leak_count":1}}'</div>
                     </div>
                     
-                    <h4>9. 删除房间</h4>
+                    <h4>10. 删除房间</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X DELETE http://zrw.baby:26313/api/rooms/ROOM01</div>
                     </div>
                     
-                    <h4>10. 获取所有房间（调试）</h4>
+                    <h4>11. 获取所有房间（调试）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl http://zrw.baby:26313/api/rooms</div>
@@ -836,52 +910,58 @@ client.update({
                     <p style="margin: 15px 0; color: #666;"><strong>步骤1：玩家1创建房间</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms -H "Content-Type: application/json" -d '{"player_id":"p1","player_name":"玩家1"}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms -H "Content-Type: application/json" -d '{"player_name":"玩家1"}'</div>
                     </div>
                     
-                    <p style="margin: 15px 0; color: #666;"><strong>步骤2：玩家1更新房间状态（房主）</strong></p>
+                    <p style="margin: 15px 0; color: #666;"><strong>步骤2：玩家2加入房间</strong></p>
+                    <div class="relative">
+                        <button class="copy-btn" onclick="copyCode(this)">复制</button>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/join -H "Content-Type: application/json" -d '{"player_name":"玩家2"}'</div>
+                    </div>
+                    
+                    <p style="margin: 15px 0; color: #666;"><strong>步骤3：玩家3加入房间</strong></p>
+                    <div class="relative">
+                        <button class="copy-btn" onclick="copyCode(this)">复制</button>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/join -H "Content-Type: application/json" -d '{"player_name":"玩家3"}'</div>
+                    </div>
+                    
+                    <p style="margin: 15px 0; color: #666;"><strong>步骤4：玩家4加入房间</strong></p>
+                    <div class="relative">
+                        <button class="copy-btn" onclick="copyCode(this)">复制</button>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/join -H "Content-Type: application/json" -d '{"player_name":"玩家4"}'</div>
+                    </div>
+                    
+                    <p style="margin: 15px 0; color: #666;"><strong>步骤5：玩家1更新房间状态（房主）</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","room_static":{"boss":"昆图斯"},"room_dynamic":{"phase":"battle","round":"1"}}'</div>
                     </div>
                     
-                    <p style="margin: 15px 0; color: #666;"><strong>步骤3：玩家2加入房间（自动创建）</strong></p>
+                    <p style="margin: 15px 0; color: #666;"><strong>步骤6：玩家2更新个人状态</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_static":{"strategy":"文火慢炖"},"player_dynamic":{"money":25}}'</div>
                     </div>
                     
-                    <p style="margin: 15px 0; color: #666;"><strong>步骤4：玩家3加入房间</strong></p>
-                    <div class="relative">
-                        <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p3","player_dynamic":{"money":20}}'</div>
-                    </div>
-                    
-                    <p style="margin: 15px 0; color: #666;"><strong>步骤5：玩家4加入房间</strong></p>
-                    <div class="relative">
-                        <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p4","player_dynamic":{"money":15}}'</div>
-                    </div>
-                    
-                    <p style="margin: 15px 0; color: #666;"><strong>步骤6：查看完整房间信息</strong></p>
+                    <p style="margin: 15px 0; color: #666;"><strong>步骤7：查看完整房间信息</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl http://zrw.baby:26313/api/rooms/ABC123</div>
                     </div>
                     
-                    <p style="margin: 15px 0; color: #666;"><strong>步骤7：玩家更新状态（游戏进行中）</strong></p>
+                    <p style="margin: 15px 0; color: #666;"><strong>步骤8：玩家更新状态（游戏进行中）</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","player_dynamic":{"money":30,"leak_count":0}}'</div>
                     </div>
                     
-                    <p style="margin: 15px 0; color: #666;"><strong>步骤8：获取最新状态（增量）</strong></p>
+                    <p style="margin: 15px 0; color: #666;"><strong>步骤9：获取最新状态（增量）</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl "http://zrw.baby:26313/api/rooms/ABC123?since=1710280305000"</div>
                     </div>
                     
-                    <p style="margin: 15px 0; color: #666;"><strong>步骤9：游戏结束，删除房间</strong></p>
+                    <p style="margin: 15px 0; color: #666;"><strong>步骤10：游戏结束，删除房间</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">curl -X DELETE http://zrw.baby:26313/api/rooms/ABC123</div>
@@ -978,8 +1058,8 @@ npm test</div>
                     <ul>
                         <li><strong>轮询频率</strong>: 建议每2秒轮询一次</li>
                         <li><strong>增量更新</strong>: 使用since参数减少网络传输</li>
-                        <li><strong>房间有效期</strong>: 房间2小时后自动清理</li>
-                        <li><strong>自动创建</strong>: 更新接口会自动创建房间</li>
+                        <li><strong>房间有效期</strong>: 房间30分钟无更新后自动清理</li>
+                        <li><strong>player_id管理</strong>: 服务器自动分配player_id，客户端不能自定义</li>
                         <li><strong>部分更新</strong>: 只需发送需要更新的字段</li>
                     </ul>
                 </div>
@@ -989,6 +1069,7 @@ npm test</div>
         <footer>
             <p>卫戍协议多人联机服务 | 版本 <span id="footer-version">v2.0</span></p>
             <p>服务器运行中 | <span id="server-status">检查中...</span></p>
+            <p>后端版本: v2.0.2026032801</p>
         </footer>
     </div>
 
