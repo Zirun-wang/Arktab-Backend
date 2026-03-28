@@ -72,18 +72,28 @@ async function runTests() {
   console.log('Test 4: Try to update with non-existent player_id');
   const updateFailRes = await request('POST', `/api/rooms/${roomId}/update`, {
     player_id: 'p3',
-    player_dynamic: { money: 100 }
+    dynamic: { money: 100 }
   });
   console.log('Status:', updateFailRes.status);
   console.log('Expected: 400, Actual:', updateFailRes.status, updateFailRes.status === 400 ? '✓ PASS' : '✗ FAIL');
   console.log();
 
-  // Test 5: Update with correct player_id
+  // Test 5: Update with correct player_id (p1) - move room fields to player data
   console.log('Test 5: Update with correct player_id (p1)');
   const updateRes = await request('POST', `/api/rooms/${roomId}/update`, {
     player_id: player1Id,
-    room_static: { boss: '卢西恩' },
-    player_dynamic: { money: 50, operators: [{ name: '能天使', elite: true, pos: 'field' }] }
+    static: { 
+      boss: '卢西恩',
+      ban_list: ['萨尔贡', '奥术', '突袭'],
+      enemy_type: ['飞行', '隐匿', '元素'],
+      strategy: 'eco'
+    },
+    dynamic: { 
+      phase: 'battle',
+      round: '7',
+      money: 50, 
+      operators: [{ name: '能天使', elite: true, pos: 'field' }] 
+    }
   });
   console.log('Status:', updateRes.status);
   console.log('Response:', JSON.stringify(updateRes.data, null, 2));
@@ -120,7 +130,7 @@ async function runTests() {
   console.log('Test 8: Try to update non-existent room');
   const wrongRoomRes = await request('POST', `/api/rooms/WRONGID/update`, {
     player_id: player1Id,
-    player_dynamic: { money: 60 }
+    dynamic: { money: 60 }
   });
   console.log('Status:', wrongRoomRes.status);
   console.log('Expected: 404, Actual:', wrongRoomRes.status, wrongRoomRes.status === 404 ? '✓ PASS' : '✗ FAIL');

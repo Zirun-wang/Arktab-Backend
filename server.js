@@ -44,15 +44,6 @@ function createRoom(roomId) {
     roomId,
     createdAt: now,
     expiresAt: now + ROOM_EXPIRY_TIME,
-    room_static: {
-      boss: null,
-      ban_list: [],
-      enemy_type: []
-    },
-    room_dynamic: {
-      phase: 'lobby',
-      round: '??'
-    },
     room_settings: {
       max_players: 4,
       enable_battle_progress_detection: false,
@@ -82,7 +73,7 @@ app.get('/', (req, res) => {
 // 更新房间状态（主接口）
 app.post('/api/rooms/:roomId/update', (req, res) => {
   const { roomId } = req.params;
-  const { player_id, room_static, room_dynamic, room_settings, player_static, player_dynamic } = req.body;
+  const { player_id, static: player_static, dynamic: player_dynamic, room_settings } = req.body;
   
   if (!player_id) {
     return res.status(400).json({
@@ -108,28 +99,6 @@ app.post('/api/rooms/:roomId/update', (req, res) => {
     });
   }
   
-  // 更新房间静态状态（只有房主可以更新）
-  if (room_static) {
-    if (player_id !== room.hostPlayerId) {
-      return res.status(403).json({
-        success: false,
-        message: '只有房主可以更新房间静态状态'
-      });
-    }
-    Object.assign(room.room_static, room_static);
-  }
-  
-  // 更新房间动态状态（只有房主可以更新）
-  if (room_dynamic) {
-    if (player_id !== room.hostPlayerId) {
-      return res.status(403).json({
-        success: false,
-        message: '只有房主可以更新房间动态状态'
-      });
-    }
-    Object.assign(room.room_dynamic, room_dynamic);
-  }
-  
   // 更新房间设置（只有房主可以更新）
   if (room_settings) {
     if (player_id !== room.hostPlayerId) {
@@ -141,12 +110,12 @@ app.post('/api/rooms/:roomId/update', (req, res) => {
     Object.assign(room.room_settings, room_settings);
   }
   
-  // 更新玩家静态状态
+  // 更新玩家静态状态（包括房间级别字段）
   if (player_static) {
     Object.assign(room.players[player_id].static, player_static);
   }
   
-  // 更新玩家动态状态（支持部分更新）
+  // 更新玩家动态状态（包括房间级别字段）
   if (player_dynamic) {
     Object.assign(room.players[player_id].dynamic, player_dynamic);
   }
@@ -201,8 +170,6 @@ app.get('/api/rooms/:roomId', (req, res) => {
       room_id: roomId,
       host_player_id: room.hostPlayerId,
       updated_at: lastUpdated,
-      room_static: room.room_static,
-      room_dynamic: room.room_dynamic,
       room_settings: room.room_settings,
       players: players
     }
@@ -361,6 +328,108 @@ app.post('/api/rooms/:roomId/join', (req, res) => {
   });
 });
 
+// 退出房间
+app.post('/api/rooms/:roomId/leave', (req, res) => {
+  const { roomId } = req.params;
+  const { player_id } = req.body;
+  
+  if (!player_id) {
+    return res.status(400).json({
+      success: false,
+      message: '缺少必要参数: player_id'
+    });
+  }
+  
+  // 获取房间
+  const room = rooms.get(roomId);
+  if (!room) {
+    return res.status(404).json({
+      success: false,
+      message: '房间不存在'
+    });
+  }
+  
+  // 检查玩家是否在房间内
+  if (!room.players[player_id]) {
+    return res.status(400).json({
+      success: false,
+      message: '玩家不在房间内'
+    });
+  }
+  
+  const playerName = room.players[player_id].player_name;
+  const isHost = (player_id === room.hostPlayerId);
+  
+  // 移除玩家
+  delete room.players[player_id];
+  
+  // 如果是房主退出，转移房主给下一个玩家
+  if (isHost) {
+    const remainingPlayers = Object.keys(room.players);
+    
+    if (remainingPlayers.length === 0) {
+      // 没有其他玩家，删除房间
+      rooms.delete(roomId);
+      roomLastUpdated.delete(roomId);
+      console.log(`[${new Date().toISOString()}] 房主退出，无其他玩家，删除房间: ${roomId}, 房主: ${playerName}(${player_id})`);
+      
+      return res.json({
+        success: true,
+        message: '房主退出，房间已解散',
+        data: {
+          room_deleted: true,
+          room_id: roomId,
+          host_transferred: false
+        }
+      });
+    }
+    
+    // 找到下一个玩家（player_id最小的一个）
+    const nextHostId = remainingPlayers.sort((a, b) => {
+      const aNum = parseInt(a.substring(1));
+      const bNum = parseInt(b.substring(1));
+      return aNum - bNum;
+    })[0];
+    
+    const newHostName = room.players[nextHostId].player_name;
+    room.hostPlayerId = nextHostId;
+    
+    roomLastUpdated.set(roomId, Date.now());
+    room.expiresAt = Date.now() + ROOM_EXPIRY_TIME;
+    
+    console.log(`[${new Date().toISOString()}] 房主退出，转移房主给: ${newHostName}(${nextHostId}), 原房主: ${playerName}(${player_id})`);
+    
+    res.json({
+      success: true,
+      message: '房主退出，房主已转移',
+      data: {
+        room_id: roomId,
+        player_id: player_id,
+        host_transferred: true,
+        new_host_id: nextHostId,
+        new_host_name: newHostName,
+        player_count: remainingPlayers.length
+      }
+    });
+  } else {
+    // 普通玩家退出
+    roomLastUpdated.set(roomId, Date.now());
+    room.expiresAt = Date.now() + ROOM_EXPIRY_TIME; // 更新过期时间
+    
+    console.log(`[${new Date().toISOString()}] 玩家退出房间: ${roomId}, 玩家: ${playerName}(${player_id})`);
+    
+    res.json({
+      success: true,
+      message: '退出房间成功',
+      data: {
+        room_id: roomId,
+        player_id: player_id,
+        player_count: Object.keys(room.players).length
+      }
+    });
+  }
+});
+
 // 获取所有房间（调试接口）
 app.get('/api/rooms', (req, res) => {
   const roomList = Array.from(rooms.values()).map(room => ({
@@ -397,6 +466,7 @@ app.listen(port, () => {
   console.log('  房间管理:');
   console.log('    POST   /api/rooms                    创建房间');
   console.log('    POST   /api/rooms/:roomId/join       加入房间');
+  console.log('    POST   /api/rooms/:roomId/leave      退出房间');
   console.log('    GET    /api/rooms                    获取所有房间');
   console.log('    GET    /api/rooms/:roomId            获取房间信息');
   console.log('    DELETE /api/rooms/:roomId            删除房间');

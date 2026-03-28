@@ -42,25 +42,15 @@ npm start
 ```json
 {
   "player_id": "p1",
-  "room_static": {
+  "static": {
     "boss": "昆图斯",
     "ban_list": ["拉特兰", "卡西米尔"],
-    "enemy_type": ["隐匿", "折射"]
-  },
-  "room_dynamic": {
-    "phase": "battle",
-    "round": "11"
-  },
-  "room_settings": {
-    "max_players": 4,
-    "enable_battle_progress_detection": true,
-    "enable_leak_count_detection": true,
-    "host_display_text": "ARK-12345"
-  },
-  "player_static": {
+    "enemy_type": ["隐匿", "折射"],
     "strategy": "文火慢炖"
   },
-  "player_dynamic": {
+  "dynamic": {
+    "phase": "battle",
+    "round": "11",
     "money": 30,
     "operators": [
       {"name": "山"},
@@ -72,6 +62,12 @@ npm start
     },
     "leak_count": 1,
     "cc_level": 5
+  },
+  "room_settings": {
+    "max_players": 4,
+    "enable_battle_progress_detection": true,
+    "enable_leak_count_detection": true,
+    "host_display_text": "ARK-12345"
   }
 }
 ```
@@ -116,15 +112,6 @@ npm start
     "room_id": "ROOM01",
     "host_player_id": "p1",
     "updated_at": 1710280305000,
-    "room_static": {
-      "boss": "昆图斯",
-      "ban_list": ["拉特兰", "卡西米尔"],
-      "enemy_type": ["隐匿", "折射"]
-    },
-    "room_dynamic": {
-      "phase": "battle",
-      "round": "11"
-    },
     "room_settings": {
       "max_players": 4,
       "enable_battle_progress_detection": true,
@@ -136,9 +123,14 @@ npm start
         "player_id": "p1",
         "player_name": "玩家1",
         "static": {
+          "boss": "昆图斯",
+          "ban_list": ["拉特兰", "卡西米尔"],
+          "enemy_type": ["隐匿", "折射"],
           "strategy": "文火慢炖"
         },
         "dynamic": {
+          "phase": "battle",
+          "round": "11",
           "money": 30,
           "operators": [...],
           "alliance_stack": {...},
@@ -238,7 +230,71 @@ npm start
 - 只需要传 `player_name`，`player_id` 由服务器自动分配
 - 服务器按加入顺序分配 player_id（p1, p2, p3, p4）
 
-### 5. 删除房间
+### 5. 退出房间
+
+**接口**：`POST /api/rooms/:roomId/leave`
+
+**请求体**：
+```json
+{
+  "player_id": "p2"
+}
+```
+
+**响应**（普通玩家退出）：
+```json
+{
+  "success": true,
+  "message": "退出房间成功",
+  "data": {
+    "room_id": "ABC123",
+    "player_id": "p2",
+    "player_count": 3
+  }
+}
+```
+
+**响应**（房主退出 - 有其他玩家）：
+```json
+{
+  "success": true,
+  "message": "房主退出，房主已转移",
+  "data": {
+    "room_id": "ABC123",
+    "player_id": "p1",
+    "host_transferred": true,
+    "new_host_id": "p2",
+    "new_host_name": "玩家2",
+    "player_count": 3
+  }
+}
+```
+
+**响应**（房主退出 - 无其他玩家）：
+```json
+{
+  "success": true,
+  "message": "房主退出，房间已解散",
+  "data": {
+    "room_deleted": true,
+    "room_id": "ABC123",
+    "host_transferred": false
+  }
+}
+```
+
+**错误响应**：
+- 404: 房间不存在
+- 400: 玩家不在房间内
+
+**说明**：
+- 普通玩家退出：从房间中移除，返回剩余玩家数量
+- 房主退出：
+  - 如果有其他玩家：房主转移到剩余玩家中 player_id 最小的一个
+  - 如果没有其他玩家：删除整个房间
+- 需要传入 `player_id` 以标识退出者
+
+### 6. 删除房间
 
 **接口**：`DELETE /api/rooms/:roomId`
 
@@ -250,7 +306,7 @@ npm start
 }
 ```
 
-### 6. 获取所有房间（调试）
+### 7. 获取所有房间（调试）
 
 **接口**：`GET /api/rooms`
 
@@ -290,13 +346,13 @@ curl -X POST http://localhost:3000/api/rooms/ROOM01/join -H "Content-Type: appli
 **3. 更新房间状态（房主）**
 
 ```bash
-curl -X POST http://localhost:3000/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","room_static":{"boss":"昆图斯"},"room_dynamic":{"phase":"battle","round":"1"}}'
+curl -X POST http://localhost:3000/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","static":{"boss":"昆图斯"},"dynamic":{"phase":"battle","round":"1"}}'
 ```
 
 **4. 更新玩家状态**
 
 ```bash
-curl -X POST http://localhost:3000/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_dynamic":{"money":25}}'
+curl -X POST http://localhost:3000/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","dynamic":{"money":25}}'
 ```
 
 **5. 更新房间设置（仅房主）**
@@ -323,7 +379,13 @@ curl "http://localhost:3000/api/rooms/ROOM01?since=1773659567156"
 curl http://localhost:3000/api/rooms
 ```
 
-**9. 删除房间**
+**9. 退出房间**
+
+```bash
+curl -X POST http://localhost:3000/api/rooms/ROOM01/leave -H "Content-Type: application/json" -d '{"player_id":"p2"}'
+```
+
+**10. 删除房间**
 
 ```bash
 curl -X DELETE http://localhost:3000/api/rooms/ROOM01
@@ -331,41 +393,35 @@ curl -X DELETE http://localhost:3000/api/rooms/ROOM01
 
 ## 📋 数据结构
 
-### 房间状态（room_static + room_dynamic）
+### 重要说明：v2.1 采用玩家自维护的数据结构
 
-```json
-{
-  "room_static": {
-    "boss": "昆图斯",
-    "ban_list": ["拉特兰", "卡西米尔"],
-    "enemy_type": ["隐匿", "折射"]
-  },
-  "room_dynamic": {
-    "phase": "battle",
-    "round": "11"
-  }
-}
-```
+所有字段（包括原房间级别字段）都在每个玩家的 `static` 和 `dynamic` 对象中维护。
 
-**phase 可选值**：
-- `lobby` - 大厅
-- `room` - 房间
-- `enemy_info` - 敌方信息
-- `strategy` - 策略
-- `prepare` - 准备
-- `battle` - 战斗
-- `extra` - 额外
-- `result` - 结果
-- `unknown` - 未知
-
-### 玩家状态（player_static + player_dynamic）
+### static 字段（静态信息，整局基本不变化）
 
 ```json
 {
   "static": {
+    "boss": "昆图斯",
+    "ban_list": ["拉特兰", "卡西米尔"],
+    "enemy_type": ["隐匿", "折射"],
     "strategy": "文火慢炖"
-  },
+  }
+}
+```
+
+- `boss`: 当前Boss（房主更新）
+- `ban_list`: ban位列表（房主更新）
+- `enemy_type`: 敌方特化类型（房主更新）
+- `strategy`: 玩家策略（玩家本人更新）
+
+### dynamic 字段（动态信息，会频繁变化）
+
+```json
+{
   "dynamic": {
+    "phase": "battle",
+    "round": "11",
     "money": 30,
     "operators": [
       {"name": "山", "elite": 2},
@@ -380,6 +436,25 @@ curl -X DELETE http://localhost:3000/api/rooms/ROOM01
   }
 }
 ```
+
+- `phase`: 当前阶段（房主更新）
+- `round`: 当前回合（房主更新）
+- `money`: 剩余资金（玩家本人更新）
+- `operators`: 场上干员（玩家本人更新）
+- `alliance_stack`: 盟约层数（玩家本人更新）
+- `leak_count`: 漏怪数（玩家本人更新）
+- `cc_level`: 调度中心等级（玩家本人更新）
+
+**phase 可选值**：
+- `lobby` - 大厅
+- `room` - 房间
+- `enemy_info` - 敌方信息
+- `strategy` - 策略
+- `prepare` - 准备
+- `battle` - 战斗
+- `extra` - 额外
+- `result` - 结果
+- `unknown` - 未知
 
 ## 💡 使用示例
 
@@ -412,13 +487,13 @@ curl -X POST http://localhost:3000/api/rooms/ROOM01/join -H "Content-Type: appli
 **步骤5：玩家1更新房间状态（房主）**
 
 ```bash
-curl -X POST http://localhost:3000/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","room_static":{"boss":"昆图斯"},"room_dynamic":{"phase":"battle","round":"1"}}'
+curl -X POST http://localhost:3000/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","static":{"boss":"昆图斯"},"dynamic":{"phase":"battle","round":"1"}}'
 ```
 
 **步骤6：玩家2更新个人状态**
 
 ```bash
-curl -X POST http://localhost:3000/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_static":{"strategy":"文火慢炖"},"player_dynamic":{"money":25}}'
+curl -X POST http://localhost:3000/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","static":{"strategy":"文火慢炖"},"dynamic":{"money":25}}'
 ```
 
 **步骤7：查看完整房间信息**
@@ -532,12 +607,16 @@ class SyncClient {
 }
 
 // 使用示例
-const client = new SyncClient('ROOM01', 'player_123');
+const client = new SyncClient('ROOM01', 'p1');
 client.start();
 
 // 更新状态
 client.update({
-  player_dynamic: {
+  static: {
+    boss: '昆图斯',
+    ban_list: ['拉特兰', '卡西米尔']
+  },
+  dynamic: {
     money: 30,
     leak_count: 1
   }

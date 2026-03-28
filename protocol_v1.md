@@ -61,14 +61,19 @@ v2 协议设计目标：
 
 ## 3. 状态模型
 
-同步信息分为四类：
+**重要变更：v2.1 采用玩家自维护的数据结构**
+
+每个玩家维护自己的状态对象，不再区分房间级别和玩家级别：
 
 | 类型     | 描述        |
 | ------ | --------- |
-| 房间静态状态 | 整局基本不变化   |
-| 房间动态状态 | 全房间共享但会变化 |
-| 玩家静态状态 | 玩家信息，低频变化 |
-| 玩家动态状态 | 玩家信息，高频变化 |
+| static | 玩家静态信息（整局基本不变化）   |
+| dynamic | 玩家动态信息（会频繁变化） |
+
+**说明：**
+- 所有字段（包括原房间级别字段）都在每个玩家的 `static` 和 `dynamic` 对象中维护
+- 服务器不需要聚合逻辑，每个玩家的数据独立存储
+- 房间级别的信息由房主维护在自己的数据中
 
 ---
 
@@ -356,25 +361,15 @@ Content-Type: application/json
 
 {
   "player_id": "p1",
-  "room_static": {
+  "static": {
     "boss": "昆图斯",
     "ban_list": ["谢拉格", "萨尔贡"],
-    "enemy_type": ["折射"]
-  },
-  "room_dynamic": {
-    "phase": "battle",
-    "round": "11"
-  },
-  "room_settings": {
-    "max_players": 4,
-    "enable_battle_progress_detection": true,
-    "enable_leak_count_detection": true,
-    "host_display_text": "ARK-12345"
-  },
-  "player_static": {
+    "enemy_type": ["折射"],
     "strategy": "文火慢炖"
   },
-  "player_dynamic": {
+  "dynamic": {
+    "phase": "battle",
+    "round": "11",
     "money": 27,
     "operators": [
       {"name": "山"}
@@ -384,6 +379,12 @@ Content-Type: application/json
     },
     "leak_count": 0,
     "cc_level": 5
+  },
+  "room_settings": {
+    "max_players": 4,
+    "enable_battle_progress_detection": true,
+    "enable_leak_count_detection": true,
+    "host_display_text": "ARK-12345"
   }
 }
 ```
@@ -434,15 +435,6 @@ GET /api/rooms/:roomId?since=1710280305000
     "room_id": "ROOM01",
     "host_player_id": "p1",
     "updated_at": 1710280306000,
-    "room_static": {
-      "boss": "昆图斯",
-      "ban_list": ["谢拉格", "萨尔贡"],
-      "enemy_type": ["折射"]
-    },
-    "room_dynamic": {
-      "phase": "battle",
-      "round": "11"
-    },
     "room_settings": {
       "max_players": 4,
       "enable_battle_progress_detection": true,
@@ -454,9 +446,14 @@ GET /api/rooms/:roomId?since=1710280305000
         "player_id": "p1",
         "player_name": "玩家1",
         "static": {
+          "boss": "昆图斯",
+          "ban_list": ["谢拉格", "萨尔贡"],
+          "enemy_type": ["折射"],
           "strategy": "文火慢炖"
         },
         "dynamic": {
+          "phase": "battle",
+          "round": "11",
           "money": 27,
           "operators": [{"name": "山"}],
           "alliance_stack": {"投资人": 2},
@@ -587,7 +584,74 @@ DELETE /api/rooms/:roomId
 
 ---
 
-### 7.6 获取所有房间（调试）
+### 7.6 退出房间
+
+**请求**：
+```
+POST /api/rooms/:roomId/leave
+Content-Type: application/json
+
+{
+  "player_id": "p2"
+}
+```
+
+**响应**（普通玩家退出）：
+```json
+{
+  "success": true,
+  "message": "退出房间成功",
+  "data": {
+    "room_id": "ABC123",
+    "player_id": "p2",
+    "player_count": 3
+  }
+}
+```
+
+**响应**（房主退出 - 有其他玩家）：
+```json
+{
+  "success": true,
+  "message": "房主退出，房主已转移",
+  "data": {
+    "room_id": "ABC123",
+    "player_id": "p1",
+    "host_transferred": true,
+    "new_host_id": "p2",
+    "new_host_name": "玩家2",
+    "player_count": 3
+  }
+}
+```
+
+**响应**（房主退出 - 无其他玩家）：
+```json
+{
+  "success": true,
+  "message": "房主退出，房间已解散",
+  "data": {
+    "room_deleted": true,
+    "room_id": "ABC123",
+    "host_transferred": false
+  }
+}
+```
+
+**错误响应**：
+- 404: 房间不存在
+- 400: 玩家不在房间内
+
+**说明**：
+- 普通玩家退出：从房间中移除，返回剩余玩家数量
+- 房主退出：
+  - 如果有其他玩家：房主转移到剩余玩家中 player_id 最小的一个，房间继续存在
+  - 如果没有其他玩家：删除整个房间
+- 需要传入 `player_id` 以标识退出者
+
+---
+
+### 7.7 获取所有房间（调试）
 
 **请求**：
 ```
@@ -661,21 +725,32 @@ money
 
 ## 9. 权威来源
 
-### 房间状态
+### static 字段
 
 由 **房主** 发送：
+- boss
+- ban_list
+- enemy_type
 
-* room_static
-* room_dynamic
+由 **玩家本人** 发送：
+- strategy
 
 ---
 
-### 玩家状态
+### dynamic 字段
+
+由 **房主** 发送：
+- phase
+- round
 
 由 **玩家本人** 发送：
+- money
+- operators
+- alliance_stack
+- leak_count
+- cc_level
 
-* player_static
-* player_dynamic
+**说明：** 所有字段都在玩家的 static 和 dynamic 对象中，房主和普通玩家可以同时发送不同类型的字段
 
 ---
 
@@ -683,38 +758,38 @@ money
 
 推荐策略：
 
-### 房间静态
+### static 字段（房主）
 
-开局同步一次。
+开局同步一次：
+- boss
+- ban_list
+- enemy_type
+
+### static 字段（玩家）
+
+开局或变化时同步：
+- strategy
 
 ---
 
-### 房间动态
+### dynamic 字段（房主）
 
 仅在变化时同步：
-
-* phase
-* round
-
----
-
-### 玩家静态
-
-开局或变化时同步。
+- phase
+- round
 
 ---
 
-### 玩家动态
+### dynamic 字段（玩家）
 
 客户端每 **2s 轮询一次**
 
 仅在字段变化时发送：
-
-* money
-* operators
-* alliance_stack
-* leak_count
-* cc_level
+- money
+- operators
+- alliance_stack
+- leak_count
+- cc_level
 
 ---
 
@@ -791,12 +866,16 @@ class SyncClient {
 }
 
 // 使用示例
-const client = new SyncClient('ROOM01', 'player_123');
+const client = new SyncClient('ROOM01', 'p1');
 client.start();
 
 // 更新状态
 client.update({
-  player_dynamic: {
+  static: {
+    boss: '昆图斯',
+    ban_list: ['拉特兰', '卡西米尔']
+  },
+  dynamic: {
     money: 30,
     leak_count: 1
   }
@@ -914,7 +993,14 @@ cc_level
 
 ## 15. 版本历史
 
-### v2.0 (当前版本)
+### v2.1 (当前版本)
+- **重大变更：采用玩家自维护的数据结构**
+- 移除 `room_static` 和 `room_dynamic`，所有字段移到玩家的 `static` 和 `dynamic` 对象中
+- 服务器不再需要聚合逻辑，每个玩家的数据独立存储
+- 房间级别的信息由房主维护在自己的数据中
+- 简化数据模型，提高可维护性
+
+### v2.0
 - 改为RESTful API协议
 - 移除WebSocket
 - 添加增量更新支持

@@ -441,62 +441,65 @@
                             <th>说明</th>
                         </tr>
                         <tr>
-                            <td>room_static</td>
+                            <td>static</td>
                             <td>boss</td>
                             <td>当前Boss</td>
                         </tr>
                         <tr>
-                            <td>room_static</td>
+                            <td>static</td>
                             <td>ban_list</td>
                             <td>ban位列表</td>
                         </tr>
                         <tr>
-                            <td>room_static</td>
+                            <td>static</td>
                             <td>enemy_type</td>
                             <td>敌方特化类型</td>
                         </tr>
                         <tr>
-                            <td>room_dynamic</td>
-                            <td>phase</td>
-                            <td>当前阶段</td>
-                        </tr>
-                        <tr>
-                            <td>room_dynamic</td>
-                            <td>round</td>
-                            <td>当前回合</td>
-                        </tr>
-                        <tr>
-                            <td>player_static</td>
+                            <td>static</td>
                             <td>strategy</td>
                             <td>玩家策略</td>
                         </tr>
                         <tr>
-                            <td>player_dynamic</td>
+                            <td>dynamic</td>
+                            <td>phase</td>
+                            <td>当前阶段</td>
+                        </tr>
+                        <tr>
+                            <td>dynamic</td>
+                            <td>round</td>
+                            <td>当前回合</td>
+                        </tr>
+                        <tr>
+                            <td>dynamic</td>
                             <td>money</td>
                             <td>剩余资金</td>
                         </tr>
                         <tr>
-                            <td>player_dynamic</td>
+                            <td>dynamic</td>
                             <td>operators</td>
                             <td>场上干员</td>
                         </tr>
                         <tr>
-                            <td>player_dynamic</td>
+                            <td>dynamic</td>
                             <td>alliance_stack</td>
                             <td>盟约层数</td>
                         </tr>
                         <tr>
-                            <td>player_dynamic</td>
+                            <td>dynamic</td>
                             <td>leak_count</td>
                             <td>漏怪数</td>
                         </tr>
                         <tr>
-                            <td>player_dynamic</td>
+                            <td>dynamic</td>
                             <td>cc_level</td>
                             <td>调度中心等级</td>
                         </tr>
                     </table>
                 </div>
+                <p style="margin-top: 10px; color: #666; font-size: 0.9em;">
+                    <strong>注意</strong>: 所有字段（包括房间级别和玩家级别）都在每个玩家的 static 和 dynamic 对象中维护
+                </p>
             </div>
 
             <!-- RESTful API -->
@@ -511,25 +514,15 @@
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
                         <div class="code-block">{
   "player_id": "p1",
-  "room_static": {
+  "static": {
     "boss": "昆图斯",
     "ban_list": ["拉特兰", "卡西米尔"],
-    "enemy_type": ["隐匿", "折射"]
-  },
-  "room_dynamic": {
-    "phase": "battle",
-    "round": "11"
-  },
-  "room_settings": {
-    "max_players": 4,
-    "enable_battle_progress_detection": true,
-    "enable_leak_count_detection": true,
-    "host_display_text": "ARK-12345"
-  },
-  "player_static": {
+    "enemy_type": ["隐匿", "折射"],
     "strategy": "文火慢炖"
   },
-  "player_dynamic": {
+  "dynamic": {
+    "phase": "battle",
+    "round": "11",
     "money": 30,
     "operators": [
       {"name": "山"},
@@ -541,6 +534,12 @@
     },
     "leak_count": 1,
     "cc_level": 5
+  },
+  "room_settings": {
+    "max_players": 4,
+    "enable_battle_progress_detection": true,
+    "enable_leak_count_detection": true,
+    "host_display_text": "ARK-12345"
   }
 }</div>
                     </div>
@@ -574,24 +573,27 @@
   "success": true,
   "data": {
     "room_id": "ROOM01",
-    "host_player_id": "player_123",
+    "host_player_id": "p1",
     "updated_at": 1710280305000,
-    "room_static": {
-      "boss": "昆图斯",
-      "ban_list": ["拉特兰", "卡西米尔"],
-      "enemy_type": ["隐匿", "折射"]
-    },
-    "room_dynamic": {
-      "phase": "battle",
-      "round": "11"
+    "room_settings": {
+      "max_players": 4,
+      "enable_battle_progress_detection": true,
+      "enable_leak_count_detection": true,
+      "host_display_text": "ARK-12345"
     },
     "players": [
       {
-        "player_id": "player_123",
+        "player_id": "p1",
+        "player_name": "房主昵称",
         "static": {
+          "boss": "昆图斯",
+          "ban_list": ["拉特兰", "卡西米尔"],
+          "enemy_type": ["隐匿", "折射"],
           "strategy": "文火慢炖"
         },
         "dynamic": {
+          "phase": "battle",
+          "round": "11",
           "money": 30,
           "operators": [...],
           "alliance_stack": {...},
@@ -685,7 +687,63 @@
                 </div>
 
                 <div class="api-section">
-                    <h3>5. 删除房间</h3>
+                    <h3>5. 退出房间</h3>
+                    <p><span class="api-method post">POST</span> <strong>/api/rooms/:roomId/leave</strong></p>
+                    <p><em>普通玩家退出：从房间中移除；房主退出：转移到剩余玩家中player_id最小的一个，无其他玩家则删除房间</em></p>
+                    <div class="relative">
+                        <button class="copy-btn" onclick="copyCode(this)">复制</button>
+                        <div class="code-block">{
+  "player_id": "p2"
+}</div>
+                    </div>
+                    <p><strong>响应（普通玩家退出）:</strong></p>
+                    <div class="response-example">
+                        <div class="code-block">{
+  "success": true,
+  "message": "退出房间成功",
+  "data": {
+    "room_id": "ABC123",
+    "player_id": "p2",
+    "player_count": 3
+  }
+}</div>
+                    </div>
+                    <p><strong>响应（房主退出 - 有其他玩家）:</strong></p>
+                    <div class="response-example">
+                        <div class="code-block">{
+  "success": true,
+  "message": "房主退出，房主已转移",
+  "data": {
+    "room_id": "ABC123",
+    "player_id": "p1",
+    "host_transferred": true,
+    "new_host_id": "p2",
+    "new_host_name": "玩家2",
+    "player_count": 3
+  }
+}</div>
+                    </div>
+                    <p><strong>响应（房主退出 - 无其他玩家）:</strong></p>
+                    <div class="response-example">
+                        <div class="code-block">{
+  "success": true,
+  "message": "房主退出，房间已解散",
+  "data": {
+    "room_deleted": true,
+    "room_id": "ABC123",
+    "host_transferred": false
+  }
+}</div>
+                    </div>
+                    <p><strong>错误响应:</strong></p>
+                    <ul>
+                        <li>404: 房间不存在</li>
+                        <li>400: 玩家不在房间内</li>
+                    </ul>
+                </div>
+
+                <div class="api-section">
+                    <h3>6. 删除房间</h3>
                     <p><span class="api-method delete">DELETE</span> <strong>/api/rooms/:roomId</strong></p>
                     <p><strong>响应:</strong></p>
                     <div class="response-example">
@@ -697,7 +755,7 @@
                 </div>
 
                 <div class="api-section">
-                    <h3>6. 获取所有房间（调试）</h3>
+                    <h3>7. 获取所有房间（调试）</h3>
                     <p><span class="api-method get">GET</span> <strong>/api/rooms</strong></p>
                     <p><strong>响应:</strong></p>
                     <div class="response-example">
@@ -824,12 +882,16 @@
 }
 
 // 使用示例
-const client = new SyncClient('ROOM01', 'player_123');
+const client = new SyncClient('ROOM01', 'p1');
 client.start();
 
 // 更新状态
 client.update({
-  player_dynamic: {
+  static: {
+    boss: '昆图斯',
+    ban_list: ['拉特兰', '卡西米尔']
+  },
+  dynamic: {
     money: 30,
     leak_count: 1
   }
@@ -864,34 +926,34 @@ client.update({
                         <div class="code-block">curl "http://zrw.baby:26313/api/rooms/ROOM01?since=1710280305000"</div>
                     </div>
                     
-                    <h4>5. 更新房间静态状态（房主）</h4>
+                    <h4>5. 更新状态（房主）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","room_static":{"boss":"昆图斯","ban_list":["拉特兰","卡西米尔"],"enemy_type":["隐匿","折射"]}}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","static":{"boss":"昆图斯","ban_list":["拉特兰","卡西米尔"],"enemy_type":["隐匿","折射"],"strategy":"eco"}}'</div>
                     </div>
                     
-                    <h4>6. 更新房间动态状态（房主）</h4>
+                    <h4>6. 更新动态状态（房主）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","room_dynamic":{"phase":"battle","round":"11"}}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","dynamic":{"phase":"battle","round":"11"}}'</div>
                     </div>
                     
-                    <h4>7. 更新玩家静态状态</h4>
+                    <h4>7. 更新玩家策略</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_static":{"strategy":"文火慢炖"}}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","static":{"strategy":"文火慢炖"}}'</div>
                     </div>
                     
-                    <h4>8. 更新玩家动态状态</h4>
+                    <h4>8. 更新玩家状态</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_dynamic":{"money":30,"operators":[{"name":"山"},{"name":"能天使"}],"alliance_stack":{"卡西米尔":2,"坚守":1},"leak_count":0,"cc_level":5}}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","dynamic":{"money":30,"operators":[{"name":"山"},{"name":"能天使"}],"alliance_stack":{"卡西米尔":2,"坚守":1},"leak_count":0,"cc_level":5}}'</div>
                     </div>
                     
                     <h4>9. 部分更新（只更新部分字段）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_dynamic":{"money":35,"leak_count":1}}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","dynamic":{"money":35,"leak_count":1}}'</div>
                     </div>
                     
                     <h4>10. 删除房间</h4>
@@ -934,13 +996,13 @@ client.update({
                     <p style="margin: 15px 0; color: #666;"><strong>步骤5：玩家1更新房间状态（房主）</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","room_static":{"boss":"昆图斯"},"room_dynamic":{"phase":"battle","round":"1"}}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","static":{"boss":"昆图斯"},"dynamic":{"phase":"battle","round":"1"}}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤6：玩家2更新个人状态</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p2","player_static":{"strategy":"文火慢炖"},"player_dynamic":{"money":25}}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p2","static":{"strategy":"文火慢炖"},"dynamic":{"money":25}}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤7：查看完整房间信息</strong></p>
@@ -952,7 +1014,7 @@ client.update({
                     <p style="margin: 15px 0; color: #666;"><strong>步骤8：玩家更新状态（游戏进行中）</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","player_dynamic":{"money":30,"leak_count":0}}'</div>
+                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","dynamic":{"money":30,"leak_count":0}}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤9：获取最新状态（增量）</strong></p>
@@ -997,7 +1059,7 @@ client.update({
 
 // 使用示例
 updateWithRetry(client, {
-  player_dynamic: {
+  dynamic: {
     money: 30
   }
 });</div>
