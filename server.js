@@ -2,9 +2,6 @@ const express = require('express');
 const app = express();
 const port = 3000;
 
-// 提供静态文件服务
-app.use(express.static('public'));
-
 // 房间数据存储
 const rooms = new Map();
 const roomLastUpdated = new Map();
@@ -14,6 +11,9 @@ const ROOM_EXPIRY_TIME = 30 * 60 * 1000; // 30分钟，单位：毫秒
 
 // 后端版本号
 const SERVER_VERSION = 'v2.0';
+
+// 客户端当前版本号
+const CLIENT_LATEST_VERSION = '26033001';
 
 // 清理过期房间的定时器
 setInterval(() => {
@@ -54,8 +54,21 @@ function createRoom(roomId) {
   };
 }
 
-// 健康检查接口
+// 根页面 - 简单页面
 app.get('/', (req, res) => {
+  res.send('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>卫戍协议</title></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; font-size: 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">卫戍协议tab</body></html>');
+});
+
+// 开发文档页面
+app.get('/developer', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
+
+// 提供静态文件服务（放在根路由之后，这样 / 会返回简单页面，但 /index.html 可以访问开发文档）
+app.use(express.static('public'));
+
+// 健康检查接口
+app.get('/health', (req, res) => {
   res.json({
     status: 'running',
     version: SERVER_VERSION,
@@ -64,6 +77,23 @@ app.get('/', (req, res) => {
     stats: {
       totalRooms: rooms.size,
       roomExpiryTime: '2小时'
+    }
+  });
+});
+
+// 客户端版本检查接口
+app.post('/api/check-version', (req, res) => {
+  const { client_version } = req.body;
+  
+  // 检查是否是最新版本
+  const isLatest = !client_version || client_version === CLIENT_LATEST_VERSION;
+  
+  res.json({
+    success: true,
+    data: {
+      is_latest: isLatest,
+      current_version: CLIENT_LATEST_VERSION,
+      message: '此处为占位字符'
     }
   });
 });

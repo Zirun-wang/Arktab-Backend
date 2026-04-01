@@ -326,7 +326,7 @@
         <div class="server-info">
             <div class="info-item">
                 <div class="label">服务器地址</div>
-                <div class="value" id="server-ip">zrw.baby:26313</div>
+                <div class="value" id="server-ip">stronghold.yituliu.cn</div>
             </div>
             <div class="info-item">
                 <div class="label">API</div>
@@ -755,7 +755,36 @@
                 </div>
 
                 <div class="api-section">
-                    <h3>7. 获取所有房间（调试）</h3>
+                    <h3>7. 客户端版本检查</h3>
+                    <p><span class="api-method post">POST</span> <strong>/api/check-version</strong></p>
+                    <p><em>客户端发送自己的版本号，服务器返回版本检查结果</em></p>
+                    <div class="relative">
+                        <button class="copy-btn" onclick="copyCode(this)">复制</button>
+                        <div class="code-block">{
+  "client_version": "26033001"
+}</div>
+                    </div>
+                    <p><strong>响应:</strong></p>
+                    <div class="response-example">
+                        <div class="code-block">{
+  "success": true,
+  "data": {
+    "is_latest": true,
+    "current_version": "26033001",
+    "message": "此处为占位字符"
+  }
+}</div>
+                    </div>
+                    <p><strong>字段说明:</strong></p>
+                    <ul>
+                        <li><strong>is_latest</strong>: 是否是最新版本（true/false）</li>
+                        <li><strong>current_version</strong>: 当前最新版本号</li>
+                        <li><strong>message</strong>: 版本信息提示（占位字符）</li>
+                    </ul>
+                </div>
+
+                <div class="api-section">
+                    <h3>8. 获取所有房间（调试）</h3>
                     <p><span class="api-method get">GET</span> <strong>/api/rooms</strong></p>
                     <p><strong>响应:</strong></p>
                     <div class="response-example">
@@ -905,128 +934,128 @@ client.update({
                     <h4>1. 创建房间</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms -H "Content-Type: application/json" -d '{"player_name":"玩家1"}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms -H "Content-Type: application/json" -d '{"player_name":"玩家1"}'</div>
                     </div>
 
                     <h4>2. 加入房间</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/join -H "Content-Type: application/json" -d '{"player_name":"玩家2"}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ROOM01/join -H "Content-Type: application/json" -d '{"player_name":"玩家2"}'</div>
                     </div>
 
                     <h4>3. 获取完整房间信息</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl http://zrw.baby:26313/api/rooms/ROOM01</div>
+                        <div class="code-block">curl https://stronghold.yituliu.cn/api/rooms/ROOM01</div>
                     </div>
                     
                     <h4>4. 增量获取（带since参数）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl "http://zrw.baby:26313/api/rooms/ROOM01?since=1710280305000"</div>
+                        <div class="code-block">curl "https://stronghold.yituliu.cn/api/rooms/ROOM01?since=1710280305000"</div>
                     </div>
                     
                     <h4>5. 更新状态（房主）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","static":{"boss":"昆图斯","ban_list":["拉特兰","卡西米尔"],"enemy_type":["隐匿","折射"],"strategy":"eco"}}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","static":{"boss":"昆图斯","ban_list":["拉特兰","卡西米尔"],"enemy_type":["隐匿","折射"],"strategy":"eco"}}'</div>
                     </div>
                     
                     <h4>6. 更新动态状态（房主）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","dynamic":{"phase":"battle","round":"11"}}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p1","dynamic":{"phase":"battle","round":"11"}}'</div>
                     </div>
                     
                     <h4>7. 更新玩家策略</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","static":{"strategy":"文火慢炖"}}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","static":{"strategy":"文火慢炖"}}'</div>
                     </div>
                     
                     <h4>8. 更新玩家状态</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","dynamic":{"money":30,"operators":[{"name":"山"},{"name":"能天使"}],"alliance_stack":{"卡西米尔":2,"坚守":1},"leak_count":0,"cc_level":5}}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","dynamic":{"money":30,"operators":[{"name":"山"},{"name":"能天使"}],"alliance_stack":{"卡西米尔":2,"坚守":1},"leak_count":0,"cc_level":5}}'</div>
                     </div>
                     
                     <h4>9. 部分更新（只更新部分字段）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","dynamic":{"money":35,"leak_count":1}}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ROOM01/update -H "Content-Type: application/json" -d '{"player_id":"p2","dynamic":{"money":35,"leak_count":1}}'</div>
                     </div>
                     
                     <h4>10. 删除房间</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X DELETE http://zrw.baby:26313/api/rooms/ROOM01</div>
+                        <div class="code-block">curl -X DELETE https://stronghold.yituliu.cn/api/rooms/ROOM01</div>
                     </div>
                     
                     <h4>11. 获取所有房间（调试）</h4>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl http://zrw.baby:26313/api/rooms</div>
+                        <div class="code-block">curl https://stronghold.yituliu.cn/api/rooms</div>
                     </div>
                     
                     <h3>完整游戏流程示例</h3>
                     <p style="margin: 15px 0; color: #666;"><strong>步骤1：玩家1创建房间</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms -H "Content-Type: application/json" -d '{"player_name":"玩家1"}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms -H "Content-Type: application/json" -d '{"player_name":"玩家1"}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤2：玩家2加入房间</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/join -H "Content-Type: application/json" -d '{"player_name":"玩家2"}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ABC123/join -H "Content-Type: application/json" -d '{"player_name":"玩家2"}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤3：玩家3加入房间</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/join -H "Content-Type: application/json" -d '{"player_name":"玩家3"}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ABC123/join -H "Content-Type: application/json" -d '{"player_name":"玩家3"}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤4：玩家4加入房间</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/join -H "Content-Type: application/json" -d '{"player_name":"玩家4"}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ABC123/join -H "Content-Type: application/json" -d '{"player_name":"玩家4"}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤5：玩家1更新房间状态（房主）</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","static":{"boss":"昆图斯"},"dynamic":{"phase":"battle","round":"1"}}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","static":{"boss":"昆图斯"},"dynamic":{"phase":"battle","round":"1"}}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤6：玩家2更新个人状态</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p2","static":{"strategy":"文火慢炖"},"dynamic":{"money":25}}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p2","static":{"strategy":"文火慢炖"},"dynamic":{"money":25}}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤7：查看完整房间信息</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl http://zrw.baby:26313/api/rooms/ABC123</div>
+                        <div class="code-block">curl https://stronghold.yituliu.cn/api/rooms/ABC123</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤8：玩家更新状态（游戏进行中）</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X POST http://zrw.baby:26313/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","dynamic":{"money":30,"leak_count":0}}'</div>
+                        <div class="code-block">curl -X POST https://stronghold.yituliu.cn/api/rooms/ABC123/update -H "Content-Type: application/json" -d '{"player_id":"p1","dynamic":{"money":30,"leak_count":0}}'</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤9：获取最新状态（增量）</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl "http://zrw.baby:26313/api/rooms/ABC123?since=1710280305000"</div>
+                        <div class="code-block">curl "https://stronghold.yituliu.cn/api/rooms/ABC123?since=1710280305000"</div>
                     </div>
                     
                     <p style="margin: 15px 0; color: #666;"><strong>步骤10：游戏结束，删除房间</strong></p>
                     <div class="relative">
                         <button class="copy-btn" onclick="copyCode(this)">复制</button>
-                        <div class="code-block">curl -X DELETE http://zrw.baby:26313/api/rooms/ABC123</div>
+                        <div class="code-block">curl -X DELETE https://stronghold.yituliu.cn/api/rooms/ABC123</div>
                     </div>
                 </div>
 
