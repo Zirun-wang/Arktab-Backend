@@ -1457,6 +1457,35 @@ curl http://localhost:3000/health</div>
                             </div>
                         </div>
 
+                        <!-- 版本管理 -->
+                        <div class="chart-section">
+                            <h3>🔧 版本管理</h3>
+                            <div id="version-config-section">
+                                <div class="form-group">
+                                    <label for="client-version">客户端最新版本号</label>
+                                    <input type="text" id="client-version" placeholder="例如: 26033001">
+                                </div>
+                                <div class="form-group">
+                                    <label for="server-version-config">服务器版本号</label>
+                                    <input type="text" id="server-version-config" placeholder="例如: v2.0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="version-message">版本检测消息</label>
+                                    <input type="text" id="version-message" placeholder="例如: 此处为占位字符">
+                                </div>
+                                <button class="btn btn-primary" onclick="saveVersionConfig()">保存修改</button>
+                                <div id="version-alert" style="margin-top: 15px;"></div>
+                                
+                                <!-- JSON 显示区域 -->
+                                <div style="margin-top: 30px;">
+                                    <h4 style="color: #667eea; margin-bottom: 10px;">📄 配置文件内容 (version_info.json)</h4>
+                                    <div class="code-block" id="version-json-display" style="max-height: 300px; overflow-y: auto;">
+                                        加载中...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- QPS 趋势图 -->
                         <div class="chart-section">
                             <h3>📈 QPS 趋势图（最近5分钟）</h3>
@@ -1988,6 +2017,8 @@ curl http://localhost:3000/health</div>
                     statsToken = token;
                     showStatsContent();
                     initStats();
+                    // 登录成功后加载版本配置
+                    loadVersionConfig();
                 } else {
                     localStorage.removeItem('statsToken');
                     showStatsLoginSection();
@@ -1997,6 +2028,100 @@ curl http://localhost:3000/health</div>
                 console.error('检查登录状态失败:', error);
                 showStatsLoginSection();
             });
+        }
+
+        // ========== 版本管理功能 ==========
+
+        // 保存版本配置
+        async function saveVersionConfig() {
+            const clientVersion = document.getElementById('client-version').value;
+            const serverVersion = document.getElementById('server-version-config').value;
+            const versionMessage = document.getElementById('version-message').value;
+            const alertDiv = document.getElementById('version-alert');
+
+            // 验证输入
+            if (!clientVersion || !serverVersion || versionMessage === undefined || versionMessage === null) {
+                showAlert(alertDiv, '请填写所有字段', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/version-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': statsToken
+                    },
+                    body: JSON.stringify({
+                        CLIENT_LATEST_VERSION: clientVersion,
+                        SERVER_VERSION: serverVersion,
+                        VERSION_MESSAGE: versionMessage
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(alertDiv, '版本配置已更新！', 'success');
+                    // 更新页面上的服务器版本号显示
+                    document.getElementById('server-version').textContent = serverVersion;
+                    setTimeout(() => {
+                        alertDiv.innerHTML = '';
+                    }, 2000);
+                } else {
+                    showAlert(alertDiv, data.message || '保存失败', 'error');
+                }
+            } catch (error) {
+                console.error('保存版本配置失败:', error);
+                showAlert(alertDiv, '保存失败，请稍后重试', 'error');
+            }
+        }
+
+        // 加载版本配置
+        async function loadVersionConfig() {
+            if (!statsToken) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/version-config', {
+                    headers: {
+                        'Authorization': statsToken
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const config = data.data;
+                    // 填充表单
+                    document.getElementById('client-version').value = config.CLIENT_LATEST_VERSION || '';
+                    document.getElementById('server-version-config').value = config.SERVER_VERSION || '';
+                    document.getElementById('version-message').value = config.VERSION_MESSAGE || '';
+                    
+                    // 更新页面上的服务器版本号显示
+                    if (config.SERVER_VERSION) {
+                        document.getElementById('server-version').textContent = config.SERVER_VERSION;
+                    }
+                    
+                    // 显示 JSON 内容
+                    document.getElementById('version-json-display').textContent = JSON.stringify(config, null, 2);
+                }
+            } catch (error) {
+                console.error('加载版本配置失败:', error);
+            }
+        }
+
+        // 显示版本配置区域
+        function showVersionConfigSection() {
+            document.getElementById('version-login-section').style.display = 'none';
+            document.getElementById('version-config-section').style.display = 'block';
+        }
+
+        // 显示版本登录区域
+        function showVersionLoginSection() {
+            document.getElementById('version-login-section').style.display = 'block';
+            document.getElementById('version-config-section').style.display = 'none';
         }
 
         // 页面加载时初始化

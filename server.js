@@ -7,24 +7,106 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// 确保归档目录存在
-const ARCHIVED_ROOMS_DIR = path.join(__dirname, 'archived_rooms');
-if (!fs.existsSync(ARCHIVED_ROOMS_DIR)) {
-  fs.mkdirSync(ARCHIVED_ROOMS_DIR, { recursive: true });
-}
+  // 确保归档目录存在
+  const ARCHIVED_ROOMS_DIR = path.join(__dirname, 'archived_rooms');
+  if (!fs.existsSync(ARCHIVED_ROOMS_DIR)) {
+    fs.mkdirSync(ARCHIVED_ROOMS_DIR, { recursive: true });
+  }
+
+  // 版本信息配置文件路径
+  const VERSION_CONFIG_FILE = path.join(__dirname, 'version_info.json');
+
+  // 默认版本配置
+  const DEFAULT_VERSION_CONFIG = {
+    CLIENT_LATEST_VERSION: '26033001',
+    SERVER_VERSION: 'v2.0',
+    VERSION_MESSAGE: '此处为占位字符'
+  };
+
+  // 内存中的版本配置
+  let versionConfig = { ...DEFAULT_VERSION_CONFIG };
+
+  // 读取版本配置文件
+  function loadVersionConfig() {
+    try {
+      if (fs.existsSync(VERSION_CONFIG_FILE)) {
+        const data = fs.readFileSync(VERSION_CONFIG_FILE, 'utf8');
+        versionConfig = JSON.parse(data);
+        console.log(`[${new Date().toISOString()}] 版本配置已加载:`, versionConfig);
+      } else {
+        // 文件不存在，创建默认配置
+        fs.writeFileSync(VERSION_CONFIG_FILE, JSON.stringify(DEFAULT_VERSION_CONFIG, null, 2), 'utf8');
+        console.log(`[${new Date().toISOString()}] 版本配置文件不存在，已创建默认配置`);
+      }
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] 读取版本配置文件失败:`, error);
+      // 使用默认配置
+      versionConfig = { ...DEFAULT_VERSION_CONFIG };
+    }
+  }
+
+  // 保存版本配置文件（带备份机制）
+  function saveVersionConfig(newConfig) {
+    try {
+      // 验证JSON格式
+      JSON.parse(JSON.stringify(newConfig));
+
+      // 生成备份文件
+      const backupFile = VERSION_CONFIG_FILE + '.bak';
+      if (fs.existsSync(VERSION_CONFIG_FILE)) {
+        fs.copyFileSync(VERSION_CONFIG_FILE, backupFile);
+        console.log(`[${new Date().toISOString()}] 已创建备份文件: ${backupFile}`);
+      }
+
+      // 写入新配置
+      fs.writeFileSync(VERSION_CONFIG_FILE, JSON.stringify(newConfig, null, 2), 'utf8');
+      
+      // 更新内存中的配置
+      versionConfig = { ...newConfig };
+      
+      // 删除备份文件
+      if (fs.existsSync(backupFile)) {
+        fs.unlinkSync(backupFile);
+        console.log(`[${new Date().toISOString()}] 备份文件已删除: ${backupFile}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] 保存版本配置失败:`, error);
+      
+      // 如果有备份文件，尝试恢复
+      const backupFile = VERSION_CONFIG_FILE + '.bak';
+      if (fs.existsSync(backupFile)) {
+        try {
+          fs.copyFileSync(backupFile, VERSION_CONFIG_FILE);
+          console.log(`[${new Date().toISOString()}] 已从备份文件恢复配置`);
+        } catch (restoreError) {
+          console.error(`[${new Date().toISOString()}] 恢复备份文件失败:`, restoreError);
+        }
+      }
+
+      return false;
+    }
+  }
+
+  // 初始化时加载版本配置
+  loadVersionConfig();
 
 // 房间数据存储
 const rooms = new Map();
 const roomLastUpdated = new Map();
+// 房间快照定时器存储
+const roomSnapshotTimers = new Map();
+// 房间快照计数器存储
+const roomSnapshotCounts = new Map();
 
 // 房间有效期（30分钟，从最后一次更新开始计算）
 const ROOM_EXPIRY_TIME = 30 * 60 * 1000; // 30分钟，单位：毫秒
 
-// 后端版本号
-const SERVER_VERSION = 'v2.0';
-
-// 客户端当前版本号
-const CLIENT_LATEST_VERSION = '26033001';
+// 从配置文件读取版本号（由 loadVersionConfig() 初始化）
+const SERVER_VERSION = () => versionConfig.SERVER_VERSION;
+const CLIENT_LATEST_VERSION = () => versionConfig.CLIENT_LATEST_VERSION;
+const VERSION_MESSAGE = () => versionConfig.VERSION_MESSAGE;
 
 // 管理员密码（从环境变量读取，默认为空字符串）
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -38,8 +120,8 @@ let bytesTransferred = 0;
 let qpsHistory = [];
 const MAX_HISTORY_POINTS = 300; // 保存最近5分钟的数据（每秒一次）
 
-// 归档房间数据到文件
-function archiveRoom(room, reason = 'T') {
+// 归档房间数据到文件（定期快照）
+function archiveRoom(room) {
   try {
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
@@ -48,9 +130,13 @@ function archiveRoom(room, reason = 'T') {
     const hostPlayer = Object.values(room.players).find(p => p.player_id === room.hostPlayerId);
     const hostName = hostPlayer ? hostPlayer.player_name : 'unknown';
     
-    // reason: T=超时, D=主动解散
-    // 生成文件名：时间戳 + 原因 + 房间ID + 房主名
-    const fileName = `${timestamp}_${reason}_${room.roomId}_${hostName}.json`;
+    // 获取或初始化快照序号
+    let snapshotNumber = roomSnapshotCounts.get(room.roomId) || 0;
+    snapshotNumber++;
+    roomSnapshotCounts.set(room.roomId, snapshotNumber);
+    
+    // 生成文件名：时间戳 + 序号 + 房间ID + 房主名
+    const fileName = `${timestamp}_${String(snapshotNumber).padStart(3, '0')}_${room.roomId}_${hostName}.json`;
     const filePath = path.join(ARCHIVED_ROOMS_DIR, fileName);
     
     // 构建归档数据（完整快照）
@@ -77,7 +163,7 @@ function archiveRoom(room, reason = 'T') {
     // 写入文件
     fs.writeFileSync(filePath, JSON.stringify(archivedData, null, 2), 'utf8');
     
-    console.log(`[${now.toISOString()}] 房间已归档: ${room.roomId} -> ${fileName}`);
+    console.log(`[${now.toISOString()}] 房间快照已保存: ${room.roomId} -> ${fileName} (第${snapshotNumber}次快照)`);
     return true;
   } catch (error) {
     console.error(`[${new Date().toISOString()}] 归档房间失败: ${room.roomId}`, error);
@@ -85,20 +171,48 @@ function archiveRoom(room, reason = 'T') {
   }
 }
 
+// 启动房间快照定时器
+function startRoomSnapshotTimer(roomId) {
+  // 清除旧的定时器（如果存在）
+  const existingTimer = roomSnapshotTimers.get(roomId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+  
+  // 创建新的定时器：5分钟后第一次快照，之后每5分钟一次
+  const timerId = setTimeout(() => {
+    const room = rooms.get(roomId);
+    if (room) {
+      // 保存快照
+      archiveRoom(room);
+      
+      // 继续下一个5分钟定时器
+      startRoomSnapshotTimer(roomId);
+    }
+  }, 5 * 60 * 1000); // 5分钟
+  
+  roomSnapshotTimers.set(roomId, timerId);
+  console.log(`[${new Date().toISOString()}] 房间 ${roomId} 快照定时器已启动，5分钟后第一次快照`);
+}
+
 // 清理过期房间的定时器
 setInterval(() => {
   const now = Date.now();
   let cleanedCount = 0;
-  let archivedCount = 0;
   
   for (const [roomId, roomData] of rooms.entries()) {
     if (now > roomData.expiresAt) {
-      // 归档房间数据（超时归档）
-      const archived = archiveRoom(roomData, 'T');
-      if (archived) {
-        archivedCount++;
+      // 清除快照定时器
+      const timerId = roomSnapshotTimers.get(roomId);
+      if (timerId) {
+        clearTimeout(timerId);
+        roomSnapshotTimers.delete(roomId);
       }
       
+      // 清除快照计数器
+      roomSnapshotCounts.delete(roomId);
+      
+      // 删除房间
       rooms.delete(roomId);
       roomLastUpdated.delete(roomId);
       cleanedCount++;
@@ -106,7 +220,7 @@ setInterval(() => {
   }
   
   if (cleanedCount > 0) {
-    console.log(`[${new Date().toISOString()}] 清理了 ${cleanedCount} 个过期房间，其中 ${archivedCount} 个已归档`);
+    console.log(`[${new Date().toISOString()}] 清理了 ${cleanedCount} 个过期房间`);
   }
 }, 5 * 60 * 1000); // 每5分钟清理一次
 
@@ -497,7 +611,7 @@ app.use(express.static('public'));
 app.get('/health', (req, res) => {
   res.json({
     status: 'running',
-    version: SERVER_VERSION,
+    version: SERVER_VERSION(),
     message: '卫戍协议多人联机服务正常运行',
     protocol: 'REST API v2',
     stats: {
@@ -512,16 +626,59 @@ app.post('/api/check-version', (req, res) => {
   const { client_version } = req.body;
   
   // 检查是否是最新版本
-  const isLatest = !client_version || client_version === CLIENT_LATEST_VERSION;
+  const isLatest = !client_version || client_version === CLIENT_LATEST_VERSION();
   
   res.json({
     success: true,
     data: {
       is_latest: isLatest,
-      current_version: CLIENT_LATEST_VERSION,
-      message: '此处为占位字符'
+      current_version: CLIENT_LATEST_VERSION(),
+      message: VERSION_MESSAGE()
     }
   });
+});
+
+// 获取版本配置（需要认证）
+app.get('/api/admin/version-config', requireAuth, (req, res) => {
+  res.json({
+    success: true,
+    data: versionConfig
+  });
+});
+
+// 更新版本配置（需要认证）
+app.post('/api/admin/version-config', requireAuth, (req, res) => {
+  const { CLIENT_LATEST_VERSION: clientVersion, SERVER_VERSION: serverVersion, VERSION_MESSAGE: versionMessage } = req.body;
+  
+  // 验证参数
+  if (!clientVersion || !serverVersion || versionMessage === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: '缺少必要参数'
+    });
+  }
+  
+  // 构建新配置
+  const newConfig = {
+    CLIENT_LATEST_VERSION: clientVersion,
+    SERVER_VERSION: serverVersion,
+    VERSION_MESSAGE: versionMessage
+  };
+  
+  // 保存配置（带备份和热更新）
+  const saved = saveVersionConfig(newConfig);
+  
+  if (saved) {
+    res.json({
+      success: true,
+      message: '版本配置已更新'
+    });
+  } else {
+    res.status(500).json({
+      success: false,
+      message: '保存配置失败，请查看服务器日志'
+    });
+  }
 });
 
 // ============ 房间管理接口 ============
@@ -667,6 +824,12 @@ app.post('/api/rooms', (req, res) => {
   rooms.set(roomId, room);
   roomLastUpdated.set(roomId, Date.now());
   
+  // 初始化快照计数器
+  roomSnapshotCounts.set(roomId, 0);
+  
+  // 启动快照定时器（5分钟后第一次快照）
+  startRoomSnapshotTimer(roomId);
+  
   console.log(`[${new Date().toISOString()}] 创建房间: ${roomId}, 房主: ${player_name}(${playerId})`);
   
   res.json({
@@ -804,8 +967,18 @@ app.post('/api/rooms/:roomId/leave', (req, res) => {
     const remainingPlayers = Object.keys(room.players);
     
     if (remainingPlayers.length === 0) {
-      // 没有其他玩家，先归档再删除房间（主动解散）
-      archiveRoom(room, 'D');
+      // 没有其他玩家，删除房间（不再归档）
+      // 清除快照定时器
+      const timerId = roomSnapshotTimers.get(roomId);
+      if (timerId) {
+        clearTimeout(timerId);
+        roomSnapshotTimers.delete(roomId);
+      }
+      
+      // 清除快照计数器
+      roomSnapshotCounts.delete(roomId);
+      
+      // 删除房间
       rooms.delete(roomId);
       roomLastUpdated.delete(roomId);
       console.log(`[${new Date().toISOString()}] 房主退出，无其他玩家，删除房间: ${roomId}, 房主: ${playerName}(${player_id})`);
@@ -917,10 +1090,9 @@ app.listen(port, () => {
   console.log('    DELETE /api/admin/archives/:filename  删除归档文件');
   console.log('='.repeat(60));
   console.log(`房间有效期: 30分钟（从最后一次更新开始计算）`);
-  console.log(`归档规则: 所有房间关闭都会归档（超时/主动解散）`);
-  console.log(`归档命名: 时间戳_T_房间ID_房主名.json (超时)`);
-  console.log(`归档命名: 时间戳_D_房间ID_房主名.json (主动解散)`);
-  console.log(`过期房间归档: ./archived_rooms/`);
+  console.log(`快照规则: 房间创建后第5分钟开始，每5分钟自动保存快照`);
+  console.log(`快照命名: 时间戳_序号_房间ID_房主名.json`);
+  console.log(`快照存储: ./archived_rooms/`);
   console.log(`数据格式: JSON (UTF-8)`);
   if (ADMIN_PASSWORD) {
     console.log(`管理员密码: 已配置（使用环境变量 ADMIN_PASSWORD）`);
