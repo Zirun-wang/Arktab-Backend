@@ -1455,6 +1455,30 @@ curl http://localhost:3000/health</div>
                                     <div class="stat-value" id="stat-archive-size">0 MB</div>
                                 </div>
                             </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-icon">🖥️</div>
+                                <div class="stat-info">
+                                    <div class="stat-label">CPU使用率</div>
+                                    <div class="stat-value" id="stat-cpu-usage">0%</div>
+                                </div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-icon">💾</div>
+                                <div class="stat-info">
+                                    <div class="stat-label">内存使用率</div>
+                                    <div class="stat-value" id="stat-mem-usage">0%</div>
+                                </div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-icon">💿</div>
+                                <div class="stat-info">
+                                    <div class="stat-label">硬盘使用率</div>
+                                    <div class="stat-value" id="stat-disk-usage">0%</div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- 版本管理 -->
@@ -1909,6 +1933,21 @@ curl http://localhost:3000/health</div>
                     document.getElementById('stat-avg-qps-60s').textContent = stats.avgQPS60s;
                     document.getElementById('stat-archive-size').textContent = stats.archiveSizeMB + ' MB';
                     
+                    // 更新系统监控数据
+                    if (stats.system) {
+                        document.getElementById('stat-cpu-usage').textContent = 
+                            stats.system.cpu.usagePercent + '%';
+                        document.getElementById('stat-mem-usage').textContent = 
+                            stats.system.memory.usagePercent + '%';
+                        document.getElementById('stat-disk-usage').textContent = 
+                            stats.system.disk.usagePercent + '%';
+                        
+                        // 根据使用率更新颜色
+                        updateStatColor('stat-cpu-usage', stats.system.cpu.usagePercent);
+                        updateStatColor('stat-mem-usage', stats.system.memory.usagePercent);
+                        updateStatColor('stat-disk-usage', stats.system.disk.usagePercent);
+                    }
+                    
                     // 更新图表
                     updateChart(stats.qpsHistory);
                 }
@@ -1985,6 +2024,20 @@ curl http://localhost:3000/health</div>
             qpsChart.data.labels = labels;
             qpsChart.data.datasets[0].data = data;
             qpsChart.update('none');
+        }
+
+        // 更新统计数字颜色
+        function updateStatColor(elementId, value) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            if (value > 80) {
+                element.style.color = '#e74c3c'; // 红色
+            } else if (value > 60) {
+                element.style.color = '#f39c12'; // 橙色
+            } else {
+                element.style.color = '#2ecc71'; // 绿色
+            }
         }
 
         // 显示状态监测登录区域

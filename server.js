@@ -554,6 +554,36 @@ app.get('/api/admin/stats', requireAuth, (req, res) => {
       avgQPS60s = recentQPS60.reduce((sum, item) => sum + item.qps, 0) / recentQPS60.length;
     }
     
+    // 获取系统监控数据
+    const cpuInfo = os.cpus()[0];
+    const cpuCores = os.cpus().length;
+    const cpuModel = cpuInfo.model;
+    
+    // 获取内存信息
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const memUsagePercent = (usedMem / totalMem) * 100;
+    
+    // 获取硬盘使用率
+    let diskUsage = { total: '0', used: '0', free: '0', usagePercent: 0 };
+    try {
+      const { execSync } = require('child_process');
+      const diskStats = execSync('df -h /', { encoding: 'utf8' });
+      const lines = diskStats.split('\n');
+      if (lines.length > 1) {
+        const parts = lines[1].split(/\s+/);
+        diskUsage = {
+          total: parts[1],
+          used: parts[2],
+          free: parts[3],
+          usagePercent: parseFloat(parts[4]) || 0
+        };
+      }
+    } catch (error) {
+      console.error('获取硬盘信息失败:', error);
+    }
+    
     res.json({
       success: true,
       data: {
@@ -568,7 +598,27 @@ app.get('/api/admin/stats', requireAuth, (req, res) => {
         qpsHistory: qpsHistory.map(item => ({
           timestamp: item.timestamp,
           qps: item.qps
-        }))
+        })),
+        // 系统监控数据
+        system: {
+          cpu: {
+            model: cpuModel,
+            cores: cpuCores,
+            usagePercent: 0  // CPU使用率需要异步采样，这里先返回0
+          },
+          memory: {
+            total: (totalMem / 1024 / 1024 / 1024).toFixed(2) + ' GB',
+            used: (usedMem / 1024 / 1024 / 1024).toFixed(2) + ' GB',
+            free: (freeMem / 1024 / 1024 / 1024).toFixed(2) + ' GB',
+            usagePercent: memUsagePercent.toFixed(2)
+          },
+          disk: {
+            total: diskUsage.total,
+            used: diskUsage.used,
+            free: diskUsage.free,
+            usagePercent: diskUsage.usagePercent
+          }
+        }
       }
     });
   } catch (error) {
