@@ -106,7 +106,7 @@ async function testSnapshot() {
     console.log('⚠️  房间已创建，快照定时器已启动');
     console.log('⚠️  5分钟后将保存第1次快照');
     console.log('⚠️  之后每5分钟保存一次快照');
-    console.log('⚠️  快照文件命名: 时间戳_序号_房间ID_房主名.json');
+    console.log('⚠️  快照文件命名: 时间戳_序号_房间ID.json');
     console.log('⚠️  快照存储位置: ./archived_rooms/');
     
     console.log('\n' + '='.repeat(60));

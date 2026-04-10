@@ -17,9 +17,9 @@
 - 保存时间戳信息
 
 ### ✅ 清晰命名
-文件名格式：`{时间戳}_{房间ID}_{房主名}.json`
+文件名格式：`{时间戳}_{序号}_{房间ID}.json`
 
-示例：`2026-04-03T16-30-00_ABC123_测试房主.json`
+示例：`2026-04-03T16-30-00_001_ABC123.json`
 
 ## 归档数据结构
 
@@ -35,14 +35,12 @@
   "room_settings": {
     "max_players": 4,
     "enable_battle_progress_detection": false,
-    "enable_leak_count_detection": false,
-    "host_display_text": ""
+    "enable_leak_count_detection": false
   },
   "player_count": 3,
   "players": [
     {
       "player_id": "p1",
-      "player_name": "测试房主",
       "static": {
         "boss": "昆图斯",
         "ban_list": ["拉特兰", "卡西米尔"],
@@ -81,13 +79,11 @@
   - `max_players`: 房间人数上限
   - `enable_battle_progress_detection`: 是否启用作战进度检测
   - `enable_leak_count_detection`: 是否启用漏怪数检测
-  - `host_display_text`: 房主展示文本
 
 ### 玩家数据
 - `player_count`: 玩家总数
 - `players`: 玩家数组
   - `player_id`: 玩家ID（p1-p4）
-  - `player_name`: 玩家昵称
   - `static`: 静态状态
   - `dynamic`: 动态状态
   - `is_host`: 是否为房主
@@ -182,7 +178,7 @@ node test-archive.js
 - 可以设置定时任务清理30天前的归档
 
 ### ⚠️ 隐私保护
-- 归档文件包含玩家昵称
+- 归档文件不包含玩家昵称等个人信息
 - 如果涉及敏感数据，建议加密存储
 - `.gitignore` 已配置，归档文件不会被提交到Git
 

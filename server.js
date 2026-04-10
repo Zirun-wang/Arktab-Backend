@@ -126,17 +126,13 @@ function archiveRoom(room) {
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
     
-    // 获取房主名称
-    const hostPlayer = Object.values(room.players).find(p => p.player_id === room.hostPlayerId);
-    const hostName = hostPlayer ? hostPlayer.player_name : 'unknown';
-    
     // 获取或初始化快照序号
     let snapshotNumber = roomSnapshotCounts.get(room.roomId) || 0;
     snapshotNumber++;
     roomSnapshotCounts.set(room.roomId, snapshotNumber);
     
-    // 生成文件名：时间戳 + 序号 + 房间ID + 房主名
-    const fileName = `${timestamp}_${String(snapshotNumber).padStart(3, '0')}_${room.roomId}_${hostName}.json`;
+    // 生成文件名：时间戳 + 序号 + 房间ID
+    const fileName = `${timestamp}_${String(snapshotNumber).padStart(3, '0')}_${room.roomId}.json`;
     const filePath = path.join(ARCHIVED_ROOMS_DIR, fileName);
     
     // 构建归档数据（完整快照）
@@ -152,7 +148,6 @@ function archiveRoom(room) {
       player_count: Object.keys(room.players).length,
       players: Object.values(room.players).map(player => ({
         player_id: player.player_id,
-        player_name: player.player_name,
         static: player.static,
         dynamic: player.dynamic,
         is_host: player.player_id === room.hostPlayerId,
@@ -382,8 +377,13 @@ app.post('/api/admin/logout', requireAuth, (req, res) => {
 // 获取归档文件列表（需要认证）
 app.get('/api/admin/archives', requireAuth, (req, res) => {
   try {
-    const files = fs.readdirSync(ARCHIVED_ROOMS_DIR)
-      .filter(file => file.endsWith('.json'))
+    // 先获取总数（不解析JSON，只统计文件数）
+    const allFiles = fs.readdirSync(ARCHIVED_ROOMS_DIR)
+      .filter(file => file.endsWith('.json'));
+    const totalCount = allFiles.length;
+    
+    // 只处理前100个文件
+    let files = allFiles.slice(0, 100)
       .map(file => {
         const filePath = path.join(ARCHIVED_ROOMS_DIR, file);
         const stats = fs.statSync(filePath);
@@ -397,7 +397,7 @@ app.get('/api/admin/archives', requireAuth, (req, res) => {
           created_at: stats.mtime.toISOString(),
           archived_at: fileData.archived_at,
           room_id: fileData.room_id,
-          host_name: fileData.players?.find(p => p.is_host)?.player_name || 'unknown',
+          host_player_id: fileData.host_player_id,
           player_count: fileData.player_count,
           duration_hours: fileData.duration_hours
         };
@@ -407,7 +407,10 @@ app.get('/api/admin/archives', requireAuth, (req, res) => {
     res.json({
       success: true,
       data: {
-        total: files.length,
+        total: totalCount, // 实际总数
+        displayed: files.length, // 实际显示的数量
+        display_limit: 100,
+        has_more: totalCount > 100, // 是否还有更多
         files: files
       }
     });
@@ -587,21 +590,20 @@ function createRoom(roomId) {
     room_settings: {
       max_players: 4,
       enable_battle_progress_detection: false,
-      enable_leak_count_detection: false,
-      host_display_text: ''
+      enable_leak_count_detection: false
     },
     players: {}
   };
 }
 
-// 根页面 - 简单页面
+// 根页面 - 入口页面
 app.get('/', (req, res) => {
-  res.send('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>卫戍协议</title></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: Arial, sans-serif; font-size: 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">卫戍协议tab</body></html>');
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 // 开发文档页面
 app.get('/developer', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
+  res.sendFile(__dirname + '/public/developer.html');
 });
 
 // 提供静态文件服务（放在根路由之后，这样 / 会返回简单页面，但 /index.html 可以访问开发文档）
@@ -1091,7 +1093,7 @@ app.listen(port, () => {
   console.log('='.repeat(60));
   console.log(`房间有效期: 30分钟（从最后一次更新开始计算）`);
   console.log(`快照规则: 房间创建后第5分钟开始，每5分钟自动保存快照`);
-  console.log(`快照命名: 时间戳_序号_房间ID_房主名.json`);
+  console.log(`快照命名: 时间戳_序号_房间ID.json`);
   console.log(`快照存储: ./archived_rooms/`);
   console.log(`数据格式: JSON (UTF-8)`);
   if (ADMIN_PASSWORD) {
