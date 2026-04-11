@@ -121,6 +121,55 @@ let bytesTransferred = 0;
 let qpsHistory = [];
 const MAX_HISTORY_POINTS = 300; // 保存最近5分钟的数据（每秒一次）
 
+// CPU监控数据（轻量级采样）
+let lastCpuUsage = null;
+let lastCpuTime = Date.now();
+let currentCpuUsage = 0; // 缓存的CPU使用率
+
+// 获取CPU使用率的轻量级函数
+function getCpuUsage() {
+  try {
+    const cpus = os.cpus();
+    let totalIdle = 0;
+    let totalTick = 0;
+    
+    cpus.forEach(cpu => {
+      for (const type in cpu.times) {
+        totalTick += cpu.times[type];
+      }
+      totalIdle += cpu.times.idle;
+    });
+    
+    const idle = totalIdle / cpus.length;
+    const total = totalTick / cpus.length;
+    
+    if (lastCpuUsage) {
+      const idleDiff = idle - lastCpuUsage.idle;
+      const totalDiff = total - lastCpuUsage.total;
+      const usagePercent = 100 - (100 * idleDiff / totalDiff);
+      
+      // 更新缓存
+      currentCpuUsage = Math.max(0, Math.min(100, usagePercent));
+      console.log(`[CPU监控] 使用率: ${currentCpuUsage.toFixed(2)}%, idleDiff: ${idleDiff.toFixed(0)}, totalDiff: ${totalDiff.toFixed(0)}`);
+    } else {
+      console.log(`[CPU监控] 初始化采样, idle: ${idle.toFixed(0)}, total: ${total.toFixed(0)}`);
+    }
+    
+    lastCpuUsage = { idle, total };
+    lastCpuTime = Date.now();
+    
+    return currentCpuUsage;
+  } catch (error) {
+    console.error('获取CPU使用率失败:', error);
+    return 0;
+  }
+}
+
+// 每5秒采样一次CPU使用率（轻量级，不阻塞）
+setInterval(() => {
+  getCpuUsage();
+}, 5000); // 5秒采样一次
+
 // 归档房间数据到文件（定期快照）
 function archiveRoom(room) {
   try {
@@ -605,7 +654,7 @@ app.get('/api/admin/stats', requireAuth, (req, res) => {
           cpu: {
             model: cpuModel,
             cores: cpuCores,
-            usagePercent: 0  // CPU使用率需要异步采样，这里先返回0
+            usagePercent: currentCpuUsage.toFixed(2)  // 使用缓存的CPU使用率
           },
           memory: {
             total: (totalMem / 1024 / 1024 / 1024).toFixed(2) + ' GB',
